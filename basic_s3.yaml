@@ -1,0 +1,28 @@
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: mrebelo-my-bucket-1
+      Tags:
+        - Key: some_name
+          Value: some_value
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: GlacierRule
+            Prefix: glacier
+            Status: Enabled
+            ExpirationInDays: '365'
+            Transitions:
+              - TransitionInDays: '1'
+                StorageClass: INTELLIGENT_TIERING
+              - TransitionInDays: '90'
+                StorageClass: GLACIER
+
+
+
