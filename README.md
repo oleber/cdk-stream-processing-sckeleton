@@ -2,8 +2,9 @@
 
 A small diagram showing what is implemented:
 
-![Alt text](./import.pipeline.svg)
-<img src="./import.pipeline.svg">
+![Alt text](./import.pipeline.png)
+
+The lambdas are raw (just creating/copy files around), feel free to add some useful code on it.
 
 # Welcome to your CDK Python project!
 
