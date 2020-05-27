@@ -8,4 +8,4 @@
 `reset; cdk synth`
 
 # Deploy
-`reset && zaws login search-test && cdk deploy`
+`cdk deploy`
