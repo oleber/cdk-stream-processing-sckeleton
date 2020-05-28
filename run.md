@@ -9,3 +9,6 @@
 
 # Deploy
 `cdk deploy`
+
+#other
+[Import external resources](https://medium.com/@visya/how-to-import-existing-aws-resources-into-cdk-stack-f1cea491e9)

@@ -1,3 +1,5 @@
+import os
+
 from aws_cdk import (
     aws_lambda,
     aws_lambda_event_sources,
@@ -5,6 +7,8 @@ from aws_cdk import (
     aws_events_targets,
     aws_s3,
     aws_sqs,
+    aws_sns,
+    aws_sns_subscriptions,
     core,
 )
 from aws_cdk.core import Duration, Tag
@@ -12,7 +16,7 @@ from aws_cdk.core import Duration, Tag
 
 class StreamProcessorStack(core.Stack):
 
-    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+    def __init__(self, scope: core.Construct, id: str, prefix: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
         def create_s3(name, block_public_access=aws_s3.BlockPublicAccess.BLOCK_ACLS):
@@ -63,6 +67,25 @@ class StreamProcessorStack(core.Stack):
 
             return sqs
 
+        def create_sqs(name):
+            sqs_dl = aws_sqs.Queue(
+                self, f"sqs_{name}_dq",
+                queue_name=f"mrebelo-{name}-dl",
+                visibility_timeout=Duration.minutes(10)
+            )
+
+            sqs = aws_sqs.Queue(
+                self, f"sqs_{name}",
+                queue_name=f"mrebelo-{name}",
+                visibility_timeout=Duration.minutes(1),
+                dead_letter_queue=aws_sqs.DeadLetterQueue(
+                    max_receive_count=3,
+                    queue=sqs_dl
+                )
+            )
+
+            return sqs
+
         def create_lambda(
                 name, code,
                 s3_source=None,
@@ -100,15 +123,17 @@ class StreamProcessorStack(core.Stack):
 
             return lambdaFn
 
+        sns_topic_base = aws_sns.Topic.from_topic_arn(self, "ImportedTopicId", os.environ.get('TOPIC_ARN'))
+
         # Create S3 bucket
-        s3_raw = create_s3("01-raw")
-        s3_refined = create_s3("02-refined")
-        s3_enriched = create_s3("03-enriched")
+        s3_raw = create_s3(f"{prefix}-01-raw")
+        s3_refined = create_s3(f"{prefix}-02-refined")
+        s3_enriched = create_s3(f"{prefix}-03-enriched")
 
-        # Prepare ingress
-        prefix = "no-prefix"
+        sqs_buffer = create_sqs(f"{prefix}-00-buffer")
+        sns_topic_base.add_subscription(aws_sns_subscriptions.SqsSubscription(sqs_buffer))
 
-        # Create invoke SNS
+        # Create invoke SQS
         sqs_01_download = create_fifo_sqs(f"{prefix}-01-download-invoke-02-refine")
         sqs_02_refine = create_fifo_sqs(f"{prefix}-02-refine-invoke-03-enrich")
         sqs_03_enrich = create_fifo_sqs(f"{prefix}-03-enrich-invoke-04-upload")
@@ -119,7 +144,10 @@ class StreamProcessorStack(core.Stack):
             code=aws_lambda.Code.asset(f"./lambda/01-download"),
             s3_destination=s3_raw,
             sqs_notify=sqs_01_download,
-            environment={"PREFIX": prefix}
+            environment={
+                "PREFIX": prefix,
+                "SOURCE_SQS_URL": sqs_buffer.queue_url
+            }
         )
 
         aws_events.Rule(
@@ -127,6 +155,8 @@ class StreamProcessorStack(core.Stack):
             schedule=aws_events.Schedule.rate(Duration.minutes(1)),
             targets=[aws_events_targets.LambdaFunction(download_lambda_fn)]
         )
+
+        sqs_buffer.grant_consume_messages(download_lambda_fn)
 
         # Create Refine Lambda
         create_lambda(
