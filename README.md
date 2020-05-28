@@ -10,7 +10,7 @@ The lambdas are raw (just creating/copy files around), feel free to add some use
 
 Using code allows for multiple deploys easily
 
-![Simple Stream](./import.pipeline-multiple.png)
+![Multiple Stream](./import.pipeline-multiple.png)
 
 # Welcome to your CDK Python project!
 
